@@ -258,8 +258,6 @@ if [[ $1 == 'cleanup' ]]; then
   exit
 fi
 
-check_cs_user
-
 if [ $OS == 'Linux' ]; then
 
   linux_before # Call on `linux_before` function
