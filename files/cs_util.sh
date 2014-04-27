@@ -57,7 +57,7 @@ function set_vnc_password {
   ## Set the VNC password as the password for the user 'cloudsigma'
   VNCPWD=$(read -t 13 READVALUE < /dev/ttyS1 && echo $READVALUE & sleep 1; echo -en "<\nvnc_password\n>" > /dev/ttyS1; wait %1)
   if [[ "$VNCPWD" ]]; then
-    PWDSTRING="cloudsigma:$VNCPWD"
+    PWDSTRING="wireadmin:$VNCPWD"
     echo $PWDSTRING | /usr/sbin/chpasswd
     echo "VNC Password set for user cloudsigma"
   else
@@ -71,28 +71,6 @@ function install_newrelic {
   chmod +x /tmp/nrsetup.sh && /tmp/nrsetup.sh && rm /tmp/nrsetup.sh
 }
 
-function install_desktop_ubuntu {
-  running_as_root
-  apt-get -y install ubuntu-desktop
-}
-
-function install_desktop_centos {
-  running_as_root
-  yum -y groupinstall "Desktop" "Desktop Platform" "X Window System" "Fonts"
-  sed -e 's/id:3:initdefault:/id:5:initdefault:/g' -i /etc/inittab
-}
-
-function install_desktop {
-  if  [ $DIST = 'Ubuntu' ]; then
-    install_desktop_ubuntu
-  elif [ $DIST = 'CentOS' ]; then
-    install_desktop_centos
-  elif [ $DIST = 'RedHat' ]; then
-    install_desktop_centos
-  else
-    echo "$DIST is an unsupported Linux distribution"
-  fi
-}
 
 function set_timezone_centos {
   running_as_root
@@ -122,7 +100,7 @@ function set_timezone {
 function self_update {
   running_as_root
   CSUTIL=/usr/sbin/cs_util.sh
-  curl -sL -o $CSUTIL https://raw.github.com/cloudsigma/vmprep/master/files/cs_util.sh
+  curl -sL -o $CSUTIL https://raw.github.com/vpetersson/vmprep/master/files/cs_util.sh
   chmod +x $CSUTIL
   chown root:root $CSUTIL
 }

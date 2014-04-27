@@ -5,14 +5,14 @@
 clear
 
 # Display banner
-curl -sL https://raw.github.com/cloudsigma/vmprep/master/files/banner
+curl -sL https://raw.github.com/vpetersson/vmprep/master/files/banner
 echo -e "\nWelcome to vmprep, CloudSigma's Virtual Machine preparation tool."
 
 ################################################################################
 # Pre-flight checks
 ################################################################################
 
-GITHUBFILEPATH="https://raw.github.com/cloudsigma/vmprep/master/files"
+GITHUBFILEPATH="https://raw.github.com/vpetersson/vmprep/master/files"
 
 ## Require a signature
 echo -e "\nPlease enter your signature (e.g. 'JD' for John Doe):"
@@ -75,14 +75,6 @@ function running_as_root {
   fi
 }
 
-# Make sure the user 'cloudsigma' exist.
-function check_cs_user {
-  CSUSR=$(python -c "import pwd; print 'cloudsigma' in [entry.pw_name for entry in pwd.getpwall()]")
-  if [ $CSUSR == 'False' ]; then
-    adduser cloudsigma --create-home --shell /bin/bash
-  fi
-}
-
 # Abort if a command fails to exit cleanly (exit code 0).
 # $1 = description
 function exit_check {
@@ -116,7 +108,7 @@ function linux_before {
   install_exec "$GITHUBFILEPATH/cs_util.sh" '/usr/sbin/cs_util.sh'
 
   # Get banner
-  BANNER=$(curl -sL https://raw.github.com/cloudsigma/vmprep/master/files/banner)
+  BANNER=$(curl -sL https://raw.github.com/vpetersson/vmprep/master/files/banner)
 
   # Overwrite /etc/rc.local
   curl -sL "$GITHUBFILEPATH/rc_local" > /etc/rc.local
@@ -129,16 +121,10 @@ function linux_before {
   passwd -l root > /dev/null
   exit_check "Disabling root login"
 
-  # Set a random password for cloudsigma (to harden the system prior to the VNC pwd is set on boot)
+  # Set a random password for wireadmin (to harden the system prior to the VNC pwd is set on boot)
   CSPWD=$(openssl rand -base64 32)
-  CSPWDSTRING="cloudsigma:$CSPWD"
+  CSPWDSTRING="wireadmin:$CSPWD"
   echo $CSPWDSTRING | /usr/sbin/chpasswd
-
-  # Make sure user 'cloudsigma' can `sudo` (without password).
-  mkdir -p /etc/sudoers.d
-  echo -e 'cloudsigma\tALL=(ALL)\tNOPASSWD: ALL' > /etc/sudoers.d/cloudsigma
-  chown root:root /etc/sudoers.d/cloudsigma
-  chmod 0440 /etc/sudoers.d/cloudsigma
 
   # Improve security by disabling root login via SSH
   sed -e 's/^.*PermitRootLogin.*$/PermitRootLogin no/g' -i /etc/ssh/sshd_config > /dev/null
@@ -152,12 +138,12 @@ function cleanup {
   find /var/log -type f -delete
 
   # Remove bash-history files
-  for file in /root/.bash_history /home/cloudsigma/.bash_history; do
+  for file in /root/.bash_history /home/wireadmin/.bash_history; do
     truncate -s 0 $file
   done
 
   # Make sure no SSH keys were installed
-  rm -rf /home/cloudsigma/.ssh
+  rm -rf /home/wireadmin/.ssh
   rm -rf /root/.ssh
 
   # Clear the history list
@@ -186,7 +172,7 @@ function linux_after {
   echo -e "\n$SYSSTRING\n"  >> /etc/issue
 
   # Touch the trigger file
-  touch /home/cloudsigma/.first_boot
+  touch /home/wireadmin/.first_boot
 
   cleanup
 
@@ -218,7 +204,7 @@ function debian {
 
   # Add user 'cloudsigma' to dialout group so that
   # it can read /dev/ttyS0 (needed for server contextualization)
-  usermod -a -G dialout cloudsigma
+  usermod -a -G dialout wireadmin
 
   # Add final line(s) to rc.local
   echo -e 'exit 0' >> /etc/rc.local
@@ -258,82 +244,6 @@ function ubuntu {
   echo -e "\n$BANNER\n\n$SYSSTRING\n** Make sure to change the password for 'cloudsigma' **\n" > /etc/motd.tail
 }
 
-## CentOS
-function centos {
-
-  # TODO: ssh key authentication doesn't work.
-  # https://github.com/cloudsigma/vmprep/issues/1
-
-  # Make sure we're up to date
-  echo "Running upgrade..."
-  yum -y upgrade
-
-  # Add user 'cloudsigma' to dialout group so that
-  # it can read /dev/ttyS0 (needed for server contextualization)
-  usermod -a -G dialout cloudsigma
-
-  # Install EPEL repository (required for fail2ban and python-pip)
-  rpm -Uvh https://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm
-
-  # Make sure desired packages are installed
-  yum install -y vim fail2ban python-pip system-config-securitylevel-tui cloud-utils
-  chkconfig fail2ban on
-
-  # Clean up
-  yum --quiet clean all
-
-  # Add final line(s) to rc.local
-  echo -e 'touch /var/lock/subsys/local\nexit 0' >> /etc/rc.local
-
-  # Configure networking
-  echo -e 'DEVICE=eth0\nBOOTPROTO=dhcp\nONBOOT=yes' > /etc/sysconfig/network-scripts/ifcfg-eth0
-
-  # Install string to Motd (after login)
-  echo -e "\n$BANNER\n\n$SYSSTRING\n** Make sure to change the password for 'cloudsigma' **\n" > /etc/motd
-
-  # Fix bug with non-persistent DHCP
-  # (http://www.metacloud.com/wp-content/uploads/2013/10/OS_Summit_Portland_Images.pdf)
-  echo "PERSISTENT_DHCLIENT=yes" >> /etc/sysconfig/network-scripts/ifcfg-eth0
-
-  # Make sure the MAC address isn't stored
-  sed -i 's/^HWADDR.*$//g' /etc/sysconfig/network-scripts/ifcfg-eth0 > /dev/null
-}
-
-## RedHat Enterprise Linux
-function redhat {
-  # Use same routine as CentOS
-  centos
-}
-
-## Fedora
-function fedora {
-
-  # Make sure we're up to date
-  echo "Running upgrade..."
-  yum -y upgrade
-
-  # Make sure desired packages are installed
-  yum install -y vim fail2ban python-pip system-config-securitylevel-tui cloud-initramfs-growroot
-  chkconfig fail2ban on
-
-  # Add user 'cloudsigma' to dialout group so that
-  # it can read /dev/ttyS0 (needed for server contextualization)
-  usermod -a -G dialout cloudsigma
-
-  # Clean up
-  yum clean all
-
-  # Install string to Motd (after login)
-  echo -e "\n$BANNER\n$SYSSTRING\n** Make sure to change the password for 'cloudsigma' **\n" > /etc/motd
-
-  # Add final line(s) to rc.local
-  echo -e 'exit 0' >> /etc/rc.local
-  chmod +x /etc/rc.local
-
-  # Install string to Motd (after login)
-  echo -e "\n$BANNER\n\n$SYSSTRING\n" > /etc/motd
-}
-
 ################################################################################
 # Enough functions already. Let's execute some code.
 ################################################################################
@@ -358,12 +268,6 @@ if [ $OS == 'Linux' ]; then
     debian # Call on `debian` function
   elif  [ $DIST = 'Ubuntu' ]; then
     ubuntu # Call on `ubuntu` function
-  elif [ $DIST = 'CentOS' ]; then
-    centos # Call on `centos` function
-  elif [ $DIST = 'RedHat' ]; then
-    redhat # Call on `redhat` funcation
-  elif [ $DIST = 'Fedora' ]; then
-    fedora # Call on `fedora` function
   else
     echo "$DIST is an unsupported Linux distribution"
   fi

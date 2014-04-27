@@ -25,16 +25,6 @@ elif [ $DIST == 'Ubuntu' ]; then
   generate_ssh_host_key_debian
 fi
 
-# CentOS / RHEL will require a reboot to properly expand disk
-# We set boot
-if [ $DIST == 'CentOS' ]; then
-  touch /home/cloudsigma/.reboot_me
-  touch /home/cloudsigma/.resize_disk
-elif [ $DIST == 'Redhat' ]; then
-  touch /home/cloudsigma/.reboot_me
-  touch /home/cloudsigma/.resize_disk
-fi
-
 # Retrieve list of commands passed on as 'run_on_first_boot' and execute them.
 function run_on_first_boot {
   COMMANDS=$(read -t 13 READVALUE < /dev/ttyS1 && echo $READVALUE & sleep 1; echo -en "<\nmeta/run_on_first_boot\n>" > /dev/ttyS1; wait %1)
@@ -66,7 +56,7 @@ function provision_hostname {
 /usr/sbin/cs_util.sh set-vnc-password
 
 # Install SSH keys for CloudSigma
-/usr/sbin/cs_util.sh install-ssh-key cloudsigma
+/usr/sbin/cs_util.sh install-ssh-key wireadmin
 
 # Provision hostname
 provision_hostname
